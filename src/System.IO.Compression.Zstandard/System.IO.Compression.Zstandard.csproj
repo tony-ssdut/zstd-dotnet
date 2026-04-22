@@ -1,0 +1,33 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<PackageId>System.IO.Compression.Zstandard</PackageId>
+		<PackageVersion>11.3.26207.106</PackageVersion>
+		<LibraryVersion>11.3.26207.106</LibraryVersion>
+		<Authors>Tony</Authors>
+		<Description>zstd dotnet native dependency</Description>
+		<PackageProjectUrl>https://github.com/tony-ssdut/zstd-dotnet</PackageProjectUrl>
+		<PackageLicenseExpression>MIT</PackageLicenseExpression>
+		<TargetFrameworks>net10.0</TargetFrameworks>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<EmbeddedResource Update="Resources\Strings.resx">
+			<LogicalName>System.IO.Compression.Zstandard.Resources.Strings.Resources</LogicalName>
+		</EmbeddedResource>
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Include="../../ref/native/win-x64/System.IO.Compression.Zstandard.Native.dll" Pack="true" PackagePath="runtimes/win-x64/native">
+		  <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>
+		<None Include="../../ref/native/linux-x64/System.IO.Compression.Zstandard.Native.so" Pack="true" PackagePath="runtimes/linux-x64/native" >
+		  <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>
+		<None Include="../../licenses/*" Pack="true" PackagePath="licenses/" />
+	</ItemGroup>
+
+</Project>

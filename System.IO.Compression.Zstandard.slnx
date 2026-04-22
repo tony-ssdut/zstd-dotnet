@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/System.IO.Compression.Zstandard/System.IO.Compression.Zstandard.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/System.IO.Compression.Zstandard.Tests/System.IO.Compression.Zstandard.Tests.csproj" />
+  </Folder>
+</Solution>
