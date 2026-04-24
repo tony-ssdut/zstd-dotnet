@@ -10,6 +10,8 @@ ZstdDotnet is a high-performance, streaming-friendly .NET wrapper for the Zstand
 - [ZstdDotnet](#zstddotnet)
 	- [Table of contents](#table-of-contents)
 	- [Status and migration](#status-and-migration)
+		- [Support matrix](#support-matrix)
+		- [Backport implementation notes](#backport-implementation-notes)
 	- [Packages](#packages)
 	- [Features](#features)
 	- [Installation](#installation)
@@ -48,14 +50,63 @@ The classic `ZstdDotnet` package is in deprecation path.
 For new consumers:
 
 - Use `System.IO.Compression.Zstandard.Backporting` as the single reference.
-- When targeting `net10.0`, NuGet resolves `System.IO.Compression.Zstandard` through the backport package.
-- When targeting `net11.0` or newer, the backport package does not add `System.IO.Compression.Zstandard` dependency.
+- When targeting `net8.0`, `net9.0`, or `net10.0`, the backport package uses the compatibility implementation from `System.IO.Compression.Zstandard`.
+- When targeting `net11.0` or newer, the backport package does not add `System.IO.Compression.Zstandard` dependency and the application uses the .NET runtime implementation directly.
 
 Migration recommendation:
 
 1. Replace direct `ZstdDotnet` references with `System.IO.Compression.Zstandard.Backporting`.
 2. Keep your target frameworks as-is; dependency behavior is framework-conditional.
 3. Remove explicit references to the old native asset package unless you need it for legacy scenarios.
+
+### Support matrix
+
+Supported .NET application targets:
+
+- `net8.0`
+- `net9.0`
+- `net10.0`
+
+Package behavior by target:
+
+- `net8.0`, `net9.0`, and `net10.0`: use the backport code shipped by `System.IO.Compression.Zstandard` through `System.IO.Compression.Zstandard.Backporting`.
+- `net11.0+`: `System.IO.Compression.Zstandard.Backporting` becomes a no-op compatibility package and the application uses the .NET runtime implementation directly.
+
+Backport package usage guidance:
+
+- Reference `System.IO.Compression.Zstandard.Backporting` from application projects when you want one package reference that spans `net8.0` through `net11.0+`.
+- On `net8.0` through `net10.0`, that package routes to the backport library code in this repository.
+- On `net11.0` and later, that same package intentionally defers to the platform implementation instead of bringing its own compatibility layer.
+
+Supported runtime environments for bundled native binaries:
+
+- Windows x64: `win-x64`
+- Linux x64: `linux-x64`
+- macOS x64: `osx-x64`
+
+Current native packaging scope is x64 only. ARM and other RIDs are not included by this package at this time.
+
+### Backport implementation notes
+
+For target frameworks where the platform does not provide `System.Runtime.InteropServices.PinnedGCHandle<T>`, this repository includes an internal compatibility implementation in `src/System.IO.Compression.Zstandard/System/Runtime/InteropServices/PinnedGCHandle.cs`.
+
+Current strategy:
+
+- The backport uses the public `GCHandle` API with `GCHandleType.Pinned`.
+- It is only intended to support this library's internal pinning scenarios, primarily dictionary byte-array lifetime management.
+- It avoids reflection and does not call runtime-internal `GCHandle.Internal*` methods.
+
+Differences from the net11 platform implementation:
+
+- The net11 implementation uses runtime-internal handle operations and stores the underlying handle value directly. The backport uses the public `GCHandle` wrapper type.
+- The backport is not a byte-for-byte clone of the platform implementation and should be treated as a compatibility shim, not a drop-in reimplementation of every low-level behavior.
+- The `Target` setter in the backport re-pins by freeing and reallocating the handle. The platform implementation updates the existing runtime handle in place.
+- Low-level conversion and pointer helpers from the platform type are intentionally not exposed in the backport because they rely on runtime internals and are not needed by this library.
+
+Practical consequence:
+
+- For this package's current use, the behavioral difference is acceptable because the handle is created to pin dictionary data and is disposed when the owning safe handle is released.
+- Consumers should not depend on undocumented runtime-level identity or pointer semantics from this compatibility type.
 
 ## Features
 - Powered by the official C implementation of Zstandard, matching native compression quality and performance.

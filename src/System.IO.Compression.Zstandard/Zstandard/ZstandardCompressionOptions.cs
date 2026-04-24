@@ -8,6 +8,10 @@ namespace System.IO.Compression
     [System.Runtime.Versioning.UnsupportedOSPlatform("wasi")]
     public sealed class ZstandardCompressionOptions
     {
+        private int _quality;
+        private int _windowLog;
+        private int _targetBlockSize;
+
         /// <summary>Gets the default compression quality level.</summary>
         public static int DefaultQuality => ZstandardUtils.Quality_Default;
 
@@ -43,7 +47,7 @@ namespace System.IO.Compression
         /// <exception cref="ArgumentOutOfRangeException">The value is not 0 and is not between <see cref="MinQuality"/> and <see cref="MaxQuality"/>.</exception>
         public int Quality
         {
-            get;
+            get => _quality;
             set
             {
                 if (value != 0)
@@ -52,7 +56,7 @@ namespace System.IO.Compression
                     ArgumentOutOfRangeException.ThrowIfLessThan(value, ZstandardUtils.Quality_Min, nameof(value));
                 }
 
-                field = value;
+                _quality = value;
             }
         }
 
@@ -67,7 +71,7 @@ namespace System.IO.Compression
         /// <exception cref="ArgumentOutOfRangeException">The value is not 0 and is not between <see cref="MinWindowLog"/> and <see cref="MaxWindowLog"/>.</exception>
         public int WindowLog
         {
-            get;
+            get => _windowLog;
             set
             {
                 if (value != 0)
@@ -76,7 +80,7 @@ namespace System.IO.Compression
                     ArgumentOutOfRangeException.ThrowIfGreaterThan(value, ZstandardUtils.WindowLog_Max, nameof(value));
                 }
 
-                field = value;
+                _windowLog = value;
             }
         }
 
@@ -88,7 +92,7 @@ namespace System.IO.Compression
         /// <value>The target block size in bytes. Valid range is from 1340 to 131072 (2^17). A value of 0 indicates no hint (implementation-defined behavior).</value>
         public int TargetBlockSize
         {
-            get;
+            get => _targetBlockSize;
             set
             {
                 if (value != 0)
@@ -97,7 +101,7 @@ namespace System.IO.Compression
                     ArgumentOutOfRangeException.ThrowIfGreaterThan(value, ZstandardUtils.TargetBlockSize_Max, nameof(value));
                 }
 
-                field = value;
+                _targetBlockSize = value;
             }
         }
 

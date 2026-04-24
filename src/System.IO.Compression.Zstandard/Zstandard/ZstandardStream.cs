@@ -18,7 +18,7 @@ namespace System.IO.Compression
         private ArrayBuffer _buffer;
         private readonly bool _leaveOpen;
         private readonly CompressionMode _mode;
-        private volatile bool _activeRwOperation;
+        private int _activeRwOperation;
 
         // Tracks whether the encoder/decoder are owned by this stream instance
         // When owned, they are disposed; when not owned, they are reset
@@ -224,7 +224,7 @@ namespace System.IO.Compression
             }
 
             // only return the buffer if no read/write operation is active
-            if (!Interlocked.Exchange(ref _activeRwOperation, true))
+            if (Interlocked.Exchange(ref _activeRwOperation, 1) == 0)
             {
                 _buffer.Dispose();
             }
@@ -242,7 +242,7 @@ namespace System.IO.Compression
 
         private bool BeginRWOperation(bool throwOnActiveRwOp = true)
         {
-            if (Interlocked.Exchange(ref _activeRwOperation, true))
+            if (Interlocked.Exchange(ref _activeRwOperation, 1) != 0)
             {
                 if (!throwOnActiveRwOp)
                 {
@@ -257,12 +257,12 @@ namespace System.IO.Compression
 
         private void EndRWOperation()
         {
-            Interlocked.Exchange(ref _activeRwOperation, false);
+            Interlocked.Exchange(ref _activeRwOperation, 0);
         }
 
         private void EnsureNoActiveRWOperation()
         {
-            if (_activeRwOperation)
+            if (Volatile.Read(ref _activeRwOperation) != 0)
             {
                 ThrowConcurrentRWOperation();
             }

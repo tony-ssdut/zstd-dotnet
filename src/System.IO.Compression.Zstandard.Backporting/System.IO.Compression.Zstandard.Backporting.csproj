@@ -4,16 +4,20 @@
     <PackageId>System.IO.Compression.Zstandard.Backporting</PackageId>
     <PackageVersion>11.3.26207.106</PackageVersion>
     <Authors>Tony</Authors>
-    <Description>Backport package for System.IO.Compression.Zstandard. On net10 it pulls native implementation; on net11+ it has no dependency.</Description>
+    <Description>Backport package for System.IO.Compression.Zstandard. On net8-net10 it uses the compatibility implementation; on net11+ it has no dependency.</Description>
     <PackageProjectUrl>https://github.com/tony-ssdut/zstd-dotnet</PackageProjectUrl>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
+    <TargetFrameworks>net8.0;net9.0;net10.0;net11.0</TargetFrameworks>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IncludeBuildOutput>false</IncludeBuildOutput>
   </PropertyGroup>
 
-  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
+  <PropertyGroup>
+    <_TargetFrameworkVersionNoPrefix>$([System.String]::Copy('$(TargetFrameworkVersion)').Substring(1))</_TargetFrameworkVersionNoPrefix>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(TargetFrameworkIdentifier)' == '.NETCoreApp' and $([MSBuild]::VersionLessThan('$(_TargetFrameworkVersionNoPrefix)', '11.0'))">
     <ProjectReference Include="../System.IO.Compression.Zstandard/System.IO.Compression.Zstandard.csproj" />
   </ItemGroup>
 
