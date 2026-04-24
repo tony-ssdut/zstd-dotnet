@@ -22,10 +22,13 @@
 
 	<ItemGroup>
 		<None Include="../../ref/native/win-x64/System.IO.Compression.Zstandard.Native.dll" Pack="true" PackagePath="runtimes/win-x64/native">
-		  <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		  <CopyToOutputDirectory Condition="'$(Configuration)' == 'Debug'">PreserveNewest</CopyToOutputDirectory>
 		</None>
 		<None Include="../../ref/native/linux-x64/System.IO.Compression.Zstandard.Native.so" Pack="true" PackagePath="runtimes/linux-x64/native" >
-		  <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		  <CopyToOutputDirectory Condition="'$(Configuration)' == 'Debug'">PreserveNewest</CopyToOutputDirectory>
+		</None>
+		<None Include="../../ref/native/osx-x64/System.IO.Compression.Zstandard.Native.dylib" Pack="true" PackagePath="runtimes/osx-x64/native" >
+		  <CopyToOutputDirectory Condition="'$(Configuration)' == 'Debug'">PreserveNewest</CopyToOutputDirectory>
 		</None>
 		<None Include="../../licenses/*" Pack="true" PackagePath="licenses/" />
 	</ItemGroup>
