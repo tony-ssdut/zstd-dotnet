@@ -50,9 +50,8 @@ jobs:
 
           zstd_version=$(xmlstarlet sel -t -v "/Project/PropertyGroup/PackageVersion" "${zstd_csproj}" | tr -d '\r\n')
           backport_version=$(xmlstarlet sel -t -v "/Project/PropertyGroup/PackageVersion" "${backport_csproj}" | tr -d '\r\n')
-          backport_dep_version=$(xmlstarlet sel -t -v "/Project/PropertyGroup/ZstandardPackageVersion" "${backport_csproj}" | tr -d '\r\n')
 
-          if [[ -z "${zstd_version}" || -z "${backport_version}" || -z "${backport_dep_version}" ]]; then
+          if [[ -z "${zstd_version}" || -z "${backport_version}" ]]; then
             echo "Failed to resolve required version values from csproj files" >&2
             exit 1
           fi
@@ -62,14 +61,6 @@ jobs:
             echo "  System.IO.Compression.Zstandard=${zstd_version}" >&2
             echo "  System.IO.Compression.Zstandard.Backporting=${backport_version}" >&2
             echo "Please align both PackageVersion values before publishing." >&2
-            exit 1
-          fi
-
-          if [[ "${zstd_version}" != "${backport_dep_version}" ]]; then
-            echo "Backport dependency version mismatch:" >&2
-            echo "  System.IO.Compression.Zstandard.PackageVersion=${zstd_version}" >&2
-            echo "  Backporting.ZstandardPackageVersion=${backport_dep_version}" >&2
-            echo "Please align ZstandardPackageVersion in the backporting project." >&2
             exit 1
           fi
 

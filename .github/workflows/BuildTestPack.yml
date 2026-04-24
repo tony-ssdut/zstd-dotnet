@@ -50,20 +50,14 @@ jobs:
 
           zstd_version=$(xmlstarlet sel -t -v "/Project/PropertyGroup/PackageVersion" "${zstd_csproj}" | tr -d '\r\n')
           backport_version=$(xmlstarlet sel -t -v "/Project/PropertyGroup/PackageVersion" "${backport_csproj}" | tr -d '\r\n')
-          backport_dep_version=$(xmlstarlet sel -t -v "/Project/PropertyGroup/ZstandardPackageVersion" "${backport_csproj}" | tr -d '\r\n')
 
-          if [[ -z "${zstd_version}" || -z "${backport_version}" || -z "${backport_dep_version}" ]]; then
+          if [[ -z "${zstd_version}" || -z "${backport_version}" ]]; then
             echo "Failed to resolve version values from csproj files" >&2
             exit 1
           fi
 
           if [[ "${zstd_version}" != "${backport_version}" ]]; then
             echo "PackageVersion mismatch between System.IO.Compression.Zstandard and Backporting." >&2
-            exit 1
-          fi
-
-          if [[ "${zstd_version}" != "${backport_dep_version}" ]]; then
-            echo "Backporting.ZstandardPackageVersion must match System.IO.Compression.Zstandard.PackageVersion." >&2
             exit 1
           fi
 

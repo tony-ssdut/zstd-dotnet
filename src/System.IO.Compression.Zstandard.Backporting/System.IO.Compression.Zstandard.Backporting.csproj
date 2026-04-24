@@ -13,12 +13,8 @@
     <IncludeBuildOutput>false</IncludeBuildOutput>
   </PropertyGroup>
 
-  <PropertyGroup>
-    <ZstandardPackageVersion>11.3.26207.106</ZstandardPackageVersion>
-  </PropertyGroup>
-
   <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
-    <PackageReference Include="System.IO.Compression.Zstandard" Version="$(ZstandardPackageVersion)" />
+    <ProjectReference Include="../System.IO.Compression.Zstandard/System.IO.Compression.Zstandard.csproj" />
   </ItemGroup>
 
 </Project>
