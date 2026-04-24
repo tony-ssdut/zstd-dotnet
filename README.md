@@ -3,45 +3,7 @@
 ZstdDotnet is a high-performance, streaming-friendly .NET wrapper for the Zstandard (ZSTD) compression library. It builds on the official native `libzstd` implementation and exposes modern .NET APIs that work seamlessly with `Span<byte>` and `Memory<byte>`.
 
 > Status update: the classic `ZstdDotnet` package is being deprecated. For new projects, use `System.IO.Compression.Zstandard.Backporting` so you get net10 backport behavior and no extra dependency on net11+.
-
 > The managed `ZstdDotnet` package delivers the .NET API surface, while `ZstdDotnet.NativeAssets` ships the cross-platform native binaries. This README covers both.
-
-## Table of contents
-- [ZstdDotnet](#zstddotnet)
-	- [Table of contents](#table-of-contents)
-	- [Status and migration](#status-and-migration)
-		- [Support matrix](#support-matrix)
-		- [Backport implementation notes](#backport-implementation-notes)
-	- [Packages](#packages)
-	- [Features](#features)
-	- [Installation](#installation)
-	- [Quick start](#quick-start)
-		- [Asynchronous usage](#asynchronous-usage)
-		- [Span/Memory helpers](#spanmemory-helpers)
-	- [API at a glance](#api-at-a-glance)
-	- [Flush API cheat sheet](#flush-api-cheat-sheet)
-	- [Design \& performance notes](#design--performance-notes)
-	- [Building \& testing](#building--testing)
-	- [Native assets package](#native-assets-package)
-		- [Goals \& layout](#goals--layout)
-		- [Building libzstd](#building-libzstd)
-		- [Packing \& publishing](#packing--publishing)
-		- [Upgrade checklist](#upgrade-checklist)
-	- [Benchmarks](#benchmarks)
-	- [Additional documentation](#additional-documentation)
-	- [License](#license)
-	- [Acknowledgements](#acknowledgements)
-
-## Packages
-
-| Package | Version source | Notes |
-|---------|----------------|-------|
-| `System.IO.Compression.Zstandard.Backporting` | `<PackageVersion>` in `src/System.IO.Compression.Zstandard.Backporting/System.IO.Compression.Zstandard.Backporting.csproj` | Recommended package for app projects. On `net10.0` it references `System.IO.Compression.Zstandard`; on `net11.0+` it adds no dependency |
-| `System.IO.Compression.Zstandard` | `<PackageVersion>` in `src/System.IO.Compression.Zstandard/System.IO.Compression.Zstandard.csproj` | Native-backed implementation used for net10 backport scenarios |
-| `ZstdDotnet` | `<PackageVersion>` in `src/ZstdDotnet/ZstdDotnet.csproj` (must be four-part, e.g. `1.5.7.0`) | Managed compression/decompression API that consumes the native package |
-| `ZstdDotnet.NativeAssets` | `<PackageVersion>` in `src/Zstdotnet.NativeAssets/ZstdDotnet.NativeAssets.csproj` | Bundles `libzstd` (`dll` / `so`) for runtime consumption |
-
-> CI workflows read the version directly from the respective project files. Keep the managed package version in four-part `Major.Minor.Patch.Revision` format.
 
 ## Status and migration
 
@@ -58,6 +20,89 @@ Migration recommendation:
 1. Replace direct `ZstdDotnet` references with `System.IO.Compression.Zstandard.Backporting`.
 2. Keep your target frameworks as-is; dependency behavior is framework-conditional.
 3. Remove explicit references to the old native asset package unless you need it for legacy scenarios.
+
+### Migration guide
+
+This is a source-compatible migration only for simple single-frame stream usage. If your code uses multi-frame output, stream reset, or low-level decoder state, review the breaking changes before replacing package references.
+
+#### Package change
+
+Replace:
+
+```xml
+<PackageReference Include="ZstdDotnet" Version="1.5.7.1" />
+```
+
+With:
+
+```xml
+<PackageReference Include="System.IO.Compression.Zstandard.Backporting" Version="11.0.1" />
+```
+
+Behavior by target framework:
+
+- `net8.0`, `net9.0`, and `net10.0`: the backport package uses the compatibility implementation from this repository.
+- `net11.0+`: the backport package becomes a compatibility shim and the application uses the .NET runtime implementation.
+
+In most application projects you should also remove any explicit `ZstdDotnet.NativeAssets` reference.
+
+#### Common renames
+
+| Old | New |
+| --- | --- |
+| `using ZstdDotnet;` | `using System.IO.Compression;` |
+| `ZstdStream` | `ZstandardStream` |
+| `ZstdEncoder` | `ZstandardEncoder` |
+| `ZstdDecoder` | `ZstandardDecoder` |
+
+#### Basic example
+
+Old:
+
+```csharp
+using ZstdDotnet;
+using System.IO.Compression;
+
+using var output = new MemoryStream();
+using (var zs = new ZstdStream(output, CompressionMode.Compress, leaveOpen: true))
+{
+    zs.Write(payload, 0, payload.Length);
+}
+```
+
+New:
+
+```csharp
+using System.IO.Compression;
+
+using var output = new MemoryStream();
+using (var zs = new ZstandardStream(output, CompressionMode.Compress, leaveOpen: true))
+{
+    zs.Write(payload);
+}
+```
+
+#### Breaking changes
+
+The main breaking changes are:
+
+- `ZstdStream.FlushFrame()` has no `ZstandardStream` equivalent. Create a new `ZstandardStream` per frame if you rely on explicit multi-frame output.
+- `ZstdStream.Reset()` does not exist. Recreate the stream or low-level codec instance for a new session.
+- Mutable `ZstdStream.CompressionLevel` is gone. Set compression behavior in the constructor or via `ZstandardCompressionOptions`.
+- Concatenated-frame decompression differs. `ZstdDotnet` stitches frames together automatically; `ZstandardStream` stops at the current frame and leaves remaining compressed bytes for the caller.
+- Low-level `ZstdDecoder.Decompress(...)` no longer takes `isFinalBlock` or returns `frameFinished`. Custom decode loops need review.
+- Static `byte[]` convenience helpers differ. Prefer `TryCompress`, `TryDecompress`, and size helpers, or add a small adapter layer.
+- Decoder max-window configuration moves from `SetMaxWindow(...)` to `new ZstandardDecoder(maxWindowLog)`.
+
+#### Migration steps
+
+1. Replace package references with `System.IO.Compression.Zstandard.Backporting`.
+2. Rename namespaces and types.
+3. Fix compile errors around `FlushFrame`, `Reset`, mutable `CompressionLevel`, and `SetMaxWindow`.
+4. Audit code that reads or writes concatenated frames or uses custom low-level decoder loops.
+5. Add regression tests for multi-frame payloads, truncation handling, and any dynamic compression configuration your application depends on.
+
+Call sites are highest risk if they use `FlushFrame(`, `.Reset(`, `.CompressionLevel =`, `SetMaxWindow(`, `ZstdEncoder.Compress(`, or `ZstdDecoder.Decompress(`.
 
 ### Support matrix
 
@@ -109,6 +154,7 @@ Practical consequence:
 - Consumers should not depend on undocumented runtime-level identity or pointer semantics from this compatibility type.
 
 ## Features
+
 - Powered by the official C implementation of Zstandard, matching native compression quality and performance.
 - Full streaming support: chunked writes/reads and transparent multi-frame decoding.
 - True async APIs (`ReadAsync`, `WriteAsync`, `FlushAsync`, `DisposeAsync`) with no sync blocking shims.
@@ -118,10 +164,9 @@ Practical consequence:
 - Frame tooling: `ZstdFrameDecoder` and `ZstdFrameInspector` expose incremental frame metadata and async iteration.
 - Hardened with 60+ unit tests covering edge cases, fuzz inputs, concurrency, cancellation, pooling, and huge frames.
 - Requires native libzstd >= 1.5.0 (the library now exclusively uses the unified `ZSTD_compressStream2()` API; legacy `compress/flush/end` trio removed internally).
- - Decoder uses DCtx (modern context); optional `SetMaxWindow(log)` to cap memory usage.
- - Reusable decoder instances via `ZstdDecoderPool` reduce allocation and native context churn.
- - Optional raw content prefix via `ZstdEncoder.SetPrefix(memory)` to boost ratio when many frames share an initial header-like segment.
-
+- Decoder uses DCtx (modern context); optional `SetMaxWindow(log)` to cap memory usage.
+- Reusable decoder instances via `ZstdDecoderPool` reduce allocation and native context churn.
+- Optional raw content prefix via `ZstdEncoder.SetPrefix(memory)` to boost ratio when many frames share an initial header-like segment.
 
 ## Installation
 
@@ -129,7 +174,7 @@ Recommended (new projects and migration target):
 
 ```xml
 <ItemGroup>
-	<PackageReference Include="System.IO.Compression.Zstandard.Backporting" Version="11.3.26207.106" />
+    <PackageReference Include="System.IO.Compression.Zstandard.Backporting" Version="11.0.1" />
 </ItemGroup>
 ```
 
@@ -142,7 +187,7 @@ Legacy (classic package, being deprecated):
 
 ```xml
 <ItemGroup>
-	<PackageReference Include="ZstdDotnet" Version="1.5.7.1" />
+  <PackageReference Include="ZstdDotnet" Version="1.5.7.1" />
 </ItemGroup>
 ```
 
@@ -156,13 +201,13 @@ var data = File.ReadAllBytes("input.bin");
 using var outStream = new MemoryStream();
 using (var zs = new ZstdStream(outStream, CompressionMode.Compress, leaveOpen: true))
 {
-		int offset = 0;
-		while (offset < data.Length)
-		{
-				int chunk = Math.Min(8192, data.Length - offset);
-				zs.Write(data, offset, chunk); // or zs.Write(data.AsSpan(offset, chunk));
-				offset += chunk;
-		}
+    int offset = 0;
+    while (offset < data.Length)
+    {
+        int chunk = Math.Min(8192, data.Length - offset);
+        zs.Write(data, offset, chunk); // or zs.Write(data.AsSpan(offset, chunk));
+        offset += chunk;
+    }
 }
 File.WriteAllBytes("output.zst", outStream.ToArray());
 
@@ -174,7 +219,7 @@ var buffer = new byte[8192];
 int read;
 while ((read = zsDec.Read(buffer, 0, buffer.Length)) > 0)
 {
-		restored.Write(buffer, 0, read);
+    restored.Write(buffer, 0, read);
 }
 ```
 
@@ -185,29 +230,30 @@ byte[] payload = GetLargeBuffer();
 await using var stream = new MemoryStream();
 await using (var encoder = new ZstdStream(stream, CompressionMode.Compress, leaveOpen: true))
 {
-		int offset = 0;
-		var random = new Random();
-		while (offset < payload.Length)
-		{
-				int chunk = Math.Min(random.Next(1024, 16_384), payload.Length - offset);
-				await encoder.WriteAsync(payload.AsMemory(offset, chunk));
-				offset += chunk;
-		}
-		await encoder.FlushAsync();
+    int offset = 0;
+    var random = new Random();
+    while (offset < payload.Length)
+    {
+        int chunk = Math.Min(random.Next(1024, 16_384), payload.Length - offset);
+        await encoder.WriteAsync(payload.AsMemory(offset, chunk));
+        offset += chunk;
+    }
+    await encoder.FlushAsync();
 }
 stream.Position = 0;
 await using (var decoder = new ZstdStream(stream, CompressionMode.Decompress, leaveOpen: true))
 {
-		var scratch = new byte[4096];
-		int n;
-		while ((n = await decoder.ReadAsync(scratch)) > 0)
-		{
-				// consume bytes
-		}
+    var scratch = new byte[4096];
+    int n;
+    while ((n = await decoder.ReadAsync(scratch)) > 0)
+    {
+        // consume bytes
+    }
 }
 ```
 
 ### Span/Memory helpers
+
 - Sync: `Write(ReadOnlySpan<byte>)`, `Read(Span<byte>)`
 - Async: `WriteAsync(ReadOnlyMemory<byte>, CancellationToken)`, `ReadAsync(Memory<byte>, CancellationToken)`
 
@@ -216,7 +262,7 @@ See [docs/LowLevel.md](docs/LowLevel.md) for incrementally streaming the low-lev
 ## API at a glance
 
 | Member | Description |
-|--------|-------------|
+| ------ | ----------- |
 | `ZstdStream(Stream inner, CompressionMode mode, bool leaveOpen = false)` | Create a compression or decompression stream |
 | `CompressionLevel` | Sets compression level when writing |
 | `Flush()` / `FlushAsync()` | Drain pending output without finalizing a frame |
@@ -233,7 +279,7 @@ See [docs/LowLevel.md](docs/LowLevel.md) for incrementally streaming the low-lev
 ## Flush API cheat sheet
 
 | Method | Writes frame terminator? | Continue same frame? | Starts new frame? | Primary use |
-|--------|--------------------------|----------------------|------------------|-------------|
+| ------ | ------------------------ | -------------------- | ---------------- | ----------- |
 | `Flush()` / `FlushAsync()` | No | Yes | No | Drain the encoder buffer to lower latency |
 | `Flush(Span<byte>, out int)` | No | Yes | No | Manual buffer control and `DestinationTooSmall` loops |
 | `FlushFrame()` | Yes | No | Yes | Logical segmentation / multi-frame output |
@@ -243,16 +289,17 @@ See [docs/LowLevel.md](docs/LowLevel.md) for incrementally streaming the low-lev
 Span<byte> scratch = stackalloc byte[1024];
 while (true)
 {
-		var status = zs.Flush(scratch, out int written);
-		if (written > 0)
-				downstream.Write(scratch[..written]);
-		if (status == OperationStatus.Done)
-				break;
-		// status == DestinationTooSmall -> loop again
+    var status = zs.Flush(scratch, out int written);
+    if (written > 0)
+        downstream.Write(scratch[..written]);
+    if (status == OperationStatus.Done)
+        break;
+    // status == DestinationTooSmall -> loop again
 }
 ```
 
 ## Design & performance notes
+
 - Partial layout: `Streams/ZstdStream.cs` provides shared state, `enc/` and `dec/` contain compression/decompression logic, and `Streams/ZstdStream.Async.*.cs` adds async entry points.
 - Buffer management: relies on `ArrayPool<byte>.Shared` to limit GC pressure.
 - Compression pipeline: repeatedly call `encoder.Compress`, using empty input to trigger flushes.
@@ -265,7 +312,7 @@ Example compression level adjustment:
 ```csharp
 using var zs = new ZstdStream(output, CompressionMode.Compress)
 {
-		CompressionLevel = 10
+    CompressionLevel = 10
 };
 ```
 
@@ -285,7 +332,7 @@ The suite currently covers flush semantics, async streaming, multi-frame behavio
 
 `ZstdDotnet.NativeAssets` publishes cross-platform `libzstd` binaries for consumption by the managed package.
 
-```
+```text
 root
  ├─ src/ZstdDotnet.NativeAssets/  # Packing project
  ├─ bin/                          # Drop native artifacts here
@@ -304,19 +351,24 @@ Pack the binaries into the NuGet package with:
 ### Building libzstd
 
 1. Clone the upstream source:
-	 ```pwsh
-	 git clone https://github.com/facebook/zstd.git
-	 cd zstd
-	 git checkout v$(xmlstarlet sel -t -v '/Project/PropertyGroup/PackageVersion' ..\src\ZstdDotnet.NativeAssets\ZstdDotnet.NativeAssets.csproj)
-	 ```
+
+   ```pwsh
+   git clone https://github.com/facebook/zstd.git
+   cd zstd
+   git checkout v$(xmlstarlet sel -t -v '/Project/PropertyGroup/PackageVersion' ..\src\ZstdDotnet.NativeAssets\ZstdDotnet.NativeAssets.csproj)
+   ```
+
 2. Build with CMake (recommended):
-	 ```pwsh
-	 mkdir build
-	 cd build
-	 cmake -DZSTD_BUILD_SHARED=ON -DZSTD_BUILD_STATIC=OFF -DCMAKE_BUILD_TYPE=Release ..
-	 cmake --build . --config Release --target zstd
-	 ```
-	 Copy the resulting `zstd.dll`/`libzstd.so` into the repository `bin/` directory.
+
+   ```pwsh
+   mkdir build
+   cd build
+   cmake -DZSTD_BUILD_SHARED=ON -DZSTD_BUILD_STATIC=OFF -DCMAKE_BUILD_TYPE=Release ..
+   cmake --build . --config Release --target zstd
+   ```
+
+   Copy the resulting `zstd.dll`/`libzstd.so` into the repository `bin/` directory.
+
 3. On Linux you may also run `make -C build/cmake install` to produce `libzstd.so`.
 
 Optional validation:
@@ -371,6 +423,7 @@ dotnet run -c Release --project benchmark/ZstdDotnet.Benchmark -- --filter *Zstd
 Find results under `BenchmarkDotNet.Artifacts/results/`. Use `--job Dry` for a quick sanity pass.
 
 ## Additional documentation
+
 - [docs/LowLevel.md](docs/LowLevel.md): Low-level encoder/decoder and static helper examples
 - [docs/Advanced.md](docs/Advanced.md): Advanced parameters, dictionary roadmap, tuning hints
 - [docs/FAQ.md](docs/FAQ.md): Frequently asked questions
@@ -387,5 +440,55 @@ Distributed under the MIT License. Upstream Zstandard library code used here (on
 - The .NET team and community for Span/Stream innovations
 
 Questions or ideas? Open an issue or pull request.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
