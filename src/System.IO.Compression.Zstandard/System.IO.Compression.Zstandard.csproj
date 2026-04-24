@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<PackageId>System.IO.Compression.Zstandard</PackageId>
+		<PackageId>SystemIOCompression.Zstandard</PackageId>
 		<PackageVersion>11.0.0</PackageVersion>
 		<LibraryVersion>11.0.0</LibraryVersion>
 		<Authors>Tony</Authors>
