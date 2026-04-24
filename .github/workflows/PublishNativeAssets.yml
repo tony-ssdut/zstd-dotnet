@@ -1,4 +1,4 @@
-name: Build Native Package
+name: "[DEPRECATED] Build Native Package"
 
 # workflow_dispatch is used to manually invoke the GH action
 on: [workflow_dispatch]
@@ -16,6 +16,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Deprecated workflow notice
+        shell: bash
+        run: |
+            echo "This workflow is deprecated and intentionally disabled."
+            echo "Use .github/workflows/PublishSystemIOCompressionPackages.yml instead."
+            exit 1
+
       # This step clones the source code to the CI build machine
       - name: Checkout code
         uses: actions/checkout@v2

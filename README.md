@@ -2,11 +2,14 @@
 
 ZstdDotnet is a high-performance, streaming-friendly .NET wrapper for the Zstandard (ZSTD) compression library. It builds on the official native `libzstd` implementation and exposes modern .NET APIs that work seamlessly with `Span<byte>` and `Memory<byte>`.
 
+> Status update: the classic `ZstdDotnet` package is being deprecated. For new projects, use `System.IO.Compression.Zstandard.Backporting` so you get net10 backport behavior and no extra dependency on net11+.
+
 > The managed `ZstdDotnet` package delivers the .NET API surface, while `ZstdDotnet.NativeAssets` ships the cross-platform native binaries. This README covers both.
 
 ## Table of contents
 - [ZstdDotnet](#zstddotnet)
 	- [Table of contents](#table-of-contents)
+	- [Status and migration](#status-and-migration)
 	- [Packages](#packages)
 	- [Features](#features)
 	- [Installation](#installation)
@@ -31,10 +34,28 @@ ZstdDotnet is a high-performance, streaming-friendly .NET wrapper for the Zstand
 
 | Package | Version source | Notes |
 |---------|----------------|-------|
+| `System.IO.Compression.Zstandard.Backporting` | `<PackageVersion>` in `src/System.IO.Compression.Zstandard.Backporting/System.IO.Compression.Zstandard.Backporting.csproj` | Recommended package for app projects. On `net10.0` it references `System.IO.Compression.Zstandard`; on `net11.0+` it adds no dependency |
+| `System.IO.Compression.Zstandard` | `<PackageVersion>` in `src/System.IO.Compression.Zstandard/System.IO.Compression.Zstandard.csproj` | Native-backed implementation used for net10 backport scenarios |
 | `ZstdDotnet` | `<PackageVersion>` in `src/ZstdDotnet/ZstdDotnet.csproj` (must be four-part, e.g. `1.5.7.0`) | Managed compression/decompression API that consumes the native package |
 | `ZstdDotnet.NativeAssets` | `<PackageVersion>` in `src/Zstdotnet.NativeAssets/ZstdDotnet.NativeAssets.csproj` | Bundles `libzstd` (`dll` / `so`) for runtime consumption |
 
 > CI workflows read the version directly from the respective project files. Keep the managed package version in four-part `Major.Minor.Patch.Revision` format.
+
+## Status and migration
+
+The classic `ZstdDotnet` package is in deprecation path.
+
+For new consumers:
+
+- Use `System.IO.Compression.Zstandard.Backporting` as the single reference.
+- When targeting `net10.0`, NuGet resolves `System.IO.Compression.Zstandard` through the backport package.
+- When targeting `net11.0` or newer, the backport package does not add `System.IO.Compression.Zstandard` dependency.
+
+Migration recommendation:
+
+1. Replace direct `ZstdDotnet` references with `System.IO.Compression.Zstandard.Backporting`.
+2. Keep your target frameworks as-is; dependency behavior is framework-conditional.
+3. Remove explicit references to the old native asset package unless you need it for legacy scenarios.
 
 ## Features
 - Powered by the official C implementation of Zstandard, matching native compression quality and performance.
@@ -52,6 +73,21 @@ ZstdDotnet is a high-performance, streaming-friendly .NET wrapper for the Zstand
 
 
 ## Installation
+
+Recommended (new projects and migration target):
+
+```xml
+<ItemGroup>
+	<PackageReference Include="System.IO.Compression.Zstandard.Backporting" Version="11.3.26207.106" />
+</ItemGroup>
+```
+
+Framework behavior:
+
+- `net10.0`: pulls `System.IO.Compression.Zstandard` via conditional dependency.
+- `net11.0+`: no additional dependency from the backport package.
+
+Legacy (classic package, being deprecated):
 
 ```xml
 <ItemGroup>

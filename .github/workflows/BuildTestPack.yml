@@ -1,0 +1,90 @@
+name: CI Build, Test, Pack
+
+on:
+  push:
+    branches:
+      - "**"
+    tags-ignore:
+      - "v*"
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      skip-tests:
+        description: Skip dotnet test
+        required: false
+        default: "false"
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
+  DOTNET_NOLOGO: 1
+  CONFIGURATION: Release
+  DOTNET_VERSION: 11.0.x
+
+jobs:
+  build-test-pack:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Install XMLStarlet
+        run: sudo apt-get update && sudo apt-get install -y xmlstarlet
+
+      - name: Validate package versions are aligned
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          zstd_csproj="src/System.IO.Compression.Zstandard/System.IO.Compression.Zstandard.csproj"
+          backport_csproj="src/System.IO.Compression.Zstandard.Backporting/System.IO.Compression.Zstandard.Backporting.csproj"
+
+          zstd_version=$(xmlstarlet sel -t -v "/Project/PropertyGroup/PackageVersion" "${zstd_csproj}" | tr -d '\r\n')
+          backport_version=$(xmlstarlet sel -t -v "/Project/PropertyGroup/PackageVersion" "${backport_csproj}" | tr -d '\r\n')
+          backport_dep_version=$(xmlstarlet sel -t -v "/Project/PropertyGroup/ZstandardPackageVersion" "${backport_csproj}" | tr -d '\r\n')
+
+          if [[ -z "${zstd_version}" || -z "${backport_version}" || -z "${backport_dep_version}" ]]; then
+            echo "Failed to resolve version values from csproj files" >&2
+            exit 1
+          fi
+
+          if [[ "${zstd_version}" != "${backport_version}" ]]; then
+            echo "PackageVersion mismatch between System.IO.Compression.Zstandard and Backporting." >&2
+            exit 1
+          fi
+
+          if [[ "${zstd_version}" != "${backport_dep_version}" ]]; then
+            echo "Backporting.ZstandardPackageVersion must match System.IO.Compression.Zstandard.PackageVersion." >&2
+            exit 1
+          fi
+
+      - name: Restore solution
+        run: dotnet restore ZstdDotnet.sln
+
+      - name: Build solution
+        run: dotnet build ZstdDotnet.sln --configuration ${{ env.CONFIGURATION }} --no-restore
+
+      - name: Run tests
+        if: ${{ inputs.skip-tests != 'true' }}
+        run: dotnet test ZstdDotnet.sln --configuration ${{ env.CONFIGURATION }} --no-build
+
+      - name: Pack System.IO.Compression.Zstandard
+        run: dotnet pack src/System.IO.Compression.Zstandard/System.IO.Compression.Zstandard.csproj --configuration ${{ env.CONFIGURATION }} --no-build -o nupkgs
+
+      - name: Pack System.IO.Compression.Zstandard.Backporting
+        run: dotnet pack src/System.IO.Compression.Zstandard.Backporting/System.IO.Compression.Zstandard.Backporting.csproj --configuration ${{ env.CONFIGURATION }} --no-build -o nupkgs
+
+      - name: Upload package artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-system-io-compression-zstandard-nupkgs
+          path: nupkgs/*.nupkg

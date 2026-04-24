@@ -1,0 +1,148 @@
+name: Publish System.IO.Compression.Zstandard Packages
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      skip-tests:
+        description: Skip dotnet test before packing
+        required: false
+        default: "false"
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
+  DOTNET_NOLOGO: 1
+  CONFIGURATION: Release
+  DOTNET_VERSION: 11.0.x
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Install XMLStarlet
+        run: sudo apt-get update && sudo apt-get install -y xmlstarlet
+
+      - name: Resolve and validate versions
+        id: versioning
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          zstd_csproj="src/System.IO.Compression.Zstandard/System.IO.Compression.Zstandard.csproj"
+          backport_csproj="src/System.IO.Compression.Zstandard.Backporting/System.IO.Compression.Zstandard.Backporting.csproj"
+
+          zstd_version=$(xmlstarlet sel -t -v "/Project/PropertyGroup/PackageVersion" "${zstd_csproj}" | tr -d '\r\n')
+          backport_version=$(xmlstarlet sel -t -v "/Project/PropertyGroup/PackageVersion" "${backport_csproj}" | tr -d '\r\n')
+          backport_dep_version=$(xmlstarlet sel -t -v "/Project/PropertyGroup/ZstandardPackageVersion" "${backport_csproj}" | tr -d '\r\n')
+
+          if [[ -z "${zstd_version}" || -z "${backport_version}" || -z "${backport_dep_version}" ]]; then
+            echo "Failed to resolve required version values from csproj files" >&2
+            exit 1
+          fi
+
+          if [[ "${zstd_version}" != "${backport_version}" ]]; then
+            echo "PackageVersion mismatch:" >&2
+            echo "  System.IO.Compression.Zstandard=${zstd_version}" >&2
+            echo "  System.IO.Compression.Zstandard.Backporting=${backport_version}" >&2
+            echo "Please align both PackageVersion values before publishing." >&2
+            exit 1
+          fi
+
+          if [[ "${zstd_version}" != "${backport_dep_version}" ]]; then
+            echo "Backport dependency version mismatch:" >&2
+            echo "  System.IO.Compression.Zstandard.PackageVersion=${zstd_version}" >&2
+            echo "  Backporting.ZstandardPackageVersion=${backport_dep_version}" >&2
+            echo "Please align ZstandardPackageVersion in the backporting project." >&2
+            exit 1
+          fi
+
+          echo "Resolved package version: ${zstd_version}"
+          echo "package_version=${zstd_version}" >> "$GITHUB_OUTPUT"
+
+      - name: Validate tag matches package version
+        if: ${{ github.event_name == 'push' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag_name="${GITHUB_REF_NAME}"
+          expected_version="${{ steps.versioning.outputs.package_version }}"
+          normalized_tag="${tag_name#v}"
+
+          if [[ "${normalized_tag}" != "${expected_version}" ]]; then
+            echo "Tag/version mismatch:" >&2
+            echo "  tag=${tag_name}" >&2
+            echo "  expected=v${expected_version}" >&2
+            echo "Please tag using v<PackageVersion> (for example: v${expected_version})." >&2
+            exit 1
+          fi
+
+      - name: Validate tag commit is on default branch
+        if: ${{ github.event_name == 'push' }}
+        shell: bash
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${DEFAULT_BRANCH}" ]]; then
+            echo "Cannot resolve repository default branch from event payload." >&2
+            exit 1
+          fi
+
+          git fetch origin "${DEFAULT_BRANCH}" --depth=1
+
+          if ! git merge-base --is-ancestor "${GITHUB_SHA}" "origin/${DEFAULT_BRANCH}"; then
+            echo "Tag commit is not reachable from origin/${DEFAULT_BRANCH}." >&2
+            echo "Please create release tags from commits that are already in ${DEFAULT_BRANCH}." >&2
+            exit 1
+          fi
+
+      - name: Restore
+        run: |
+          dotnet restore src/System.IO.Compression.Zstandard/System.IO.Compression.Zstandard.csproj
+          dotnet restore src/System.IO.Compression.Zstandard.Backporting/System.IO.Compression.Zstandard.Backporting.csproj
+
+      - name: Run tests
+        if: ${{ inputs.skip-tests != 'true' }}
+        run: dotnet test ZstdDotnet.sln --configuration ${{ env.CONFIGURATION }}
+
+      - name: Pack System.IO.Compression.Zstandard
+        run: dotnet pack src/System.IO.Compression.Zstandard/System.IO.Compression.Zstandard.csproj --configuration ${{ env.CONFIGURATION }} -o nupkgs
+
+      - name: Pack System.IO.Compression.Zstandard.Backporting
+        run: dotnet pack src/System.IO.Compression.Zstandard.Backporting/System.IO.Compression.Zstandard.Backporting.csproj --configuration ${{ env.CONFIGURATION }} -o nupkgs
+
+      - name: Push packages to NuGet
+        env:
+          NUGET_KEY: ${{ secrets.NUGET_DEPLOY_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${NUGET_KEY}" ]]; then
+            echo "NUGET_DEPLOY_KEY secret is missing" >&2
+            exit 1
+          fi
+
+          find nupkgs -name "*.nupkg" -print -exec dotnet nuget push {} -s https://api.nuget.org/v3/index.json -k "${NUGET_KEY}" --skip-duplicate \;
+
+      - name: Upload package artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: system-io-compression-zstandard-nupkgs
+          path: nupkgs/*.nupkg

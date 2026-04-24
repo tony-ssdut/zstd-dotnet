@@ -1,4 +1,4 @@
-name: Publish ZstdDotnet Package
+name: "[DEPRECATED] Publish ZstdDotnet Package"
 
 on:
   workflow_dispatch:
@@ -20,6 +20,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Deprecated workflow notice
+        shell: bash
+        run: |
+          echo "This workflow is deprecated and intentionally disabled."
+          echo "Use .github/workflows/PublishSystemIOCompressionPackages.yml instead."
+          exit 1
+
       - name: Checkout repository
         uses: actions/checkout@v4
 
