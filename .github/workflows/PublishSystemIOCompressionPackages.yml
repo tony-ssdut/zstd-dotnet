@@ -130,7 +130,31 @@ jobs:
             exit 1
           fi
 
-          find nupkgs -name "*.nupkg" -print -exec dotnet nuget push {} -s https://api.nuget.org/v3/index.json -k "${NUGET_KEY}" --skip-duplicate \;
+          shopt -s nullglob
+          for pkg in nupkgs/*.nupkg; do
+            echo "Pushing ${pkg}"
+
+            set +e
+            push_output=$(dotnet nuget push "${pkg}" -s https://api.nuget.org/v3/index.json -k "${NUGET_KEY}" --skip-duplicate 2>&1)
+            push_exit=$?
+            set -e
+
+            echo "${push_output}"
+
+            if [[ ${push_exit} -eq 0 ]]; then
+              continue
+            fi
+
+            # Some dotnet/nuget combinations still return non-zero on duplicate even with --skip-duplicate.
+            # Treat HTTP 409/"already exists" as success and fail only for real push errors.
+            if echo "${push_output}" | grep -Eiq "already exists|conflict|409"; then
+              echo "Package already published, continuing: ${pkg}"
+              continue
+            fi
+
+            echo "Failed to push package: ${pkg}" >&2
+            exit 1
+          done
 
       - name: Upload package artifacts
         uses: actions/upload-artifact@v4
