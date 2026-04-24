@@ -70,8 +70,18 @@ jobs:
       - name: Restore solution
         run: dotnet restore ZstdDotnet.sln
 
+      - name: Restore package projects
+        run: |
+          dotnet restore src/System.IO.Compression.Zstandard/System.IO.Compression.Zstandard.csproj
+          dotnet restore src/System.IO.Compression.Zstandard.Backporting/System.IO.Compression.Zstandard.Backporting.csproj
+
       - name: Build solution
         run: dotnet build ZstdDotnet.sln --configuration ${{ env.CONFIGURATION }} --no-restore
+
+      - name: Build package projects
+        run: |
+          dotnet build src/System.IO.Compression.Zstandard/System.IO.Compression.Zstandard.csproj --configuration ${{ env.CONFIGURATION }} --no-restore
+          dotnet build src/System.IO.Compression.Zstandard.Backporting/System.IO.Compression.Zstandard.Backporting.csproj --configuration ${{ env.CONFIGURATION }} --no-restore
 
       - name: Run tests
         if: ${{ inputs.skip-tests != 'true' }}
