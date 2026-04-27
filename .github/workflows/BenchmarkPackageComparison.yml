@@ -1,0 +1,58 @@
+name: Benchmark Package Comparison
+
+on:
+  workflow_dispatch:
+    inputs:
+      benchmark-filter:
+        description: BenchmarkDotNet filter (default is all benchmarks)
+        required: false
+        default: "*"
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
+  DOTNET_NOLOGO: 1
+  DOTNET_VERSION: 11.0.x
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore benchmark project
+        run: dotnet restore benchmark/ZstdDotnet.PackageComparison.Benchmarks/ZstdDotnet.PackageComparison.Benchmarks.csproj
+
+      - name: Run benchmark comparison
+        run: |
+          dotnet run -c Release --project benchmark/ZstdDotnet.PackageComparison.Benchmarks/ZstdDotnet.PackageComparison.Benchmarks.csproj -- \
+            --filter "${{ github.event.inputs.benchmark-filter || '*' }}" \
+            --exporters github markdown
+
+      - name: Publish benchmark summary
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          summary_file=$(find benchmark/ZstdDotnet.PackageComparison.Benchmarks/BenchmarkDotNet.Artifacts/results -name "*-report-github.md" | head -n 1 || true)
+          if [[ -n "${summary_file}" && -f "${summary_file}" ]]; then
+            cat "${summary_file}" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Benchmark completed, but no github markdown summary file was found." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload benchmark artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-package-comparison-artifacts
+          path: benchmark/ZstdDotnet.PackageComparison.Benchmarks/BenchmarkDotNet.Artifacts/**
