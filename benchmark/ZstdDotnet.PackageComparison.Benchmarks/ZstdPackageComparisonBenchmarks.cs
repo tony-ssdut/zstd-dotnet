@@ -1,8 +1,7 @@
-using BenchmarkDotNet.Attributes;
-using BenchmarkDotNet.Columns;
 using BenchmarkDotNet.Jobs;
 using BenchmarkDotNet.Order;
-using ZstdDotnet;
+using BenchmarkDotNet.Attributes;
+using System.IO.Compression;
 
 namespace ZstdDotnet.PackageComparison.Benchmarks;
 
