@@ -13,6 +13,7 @@ namespace System.IO.Compression
     {
         private ZstandardDecoder? _decoder;
         private bool _nonEmptyInput;
+        private bool _decompressionCompleted;
 
         /// <summary>Initializes a new instance of the <see cref="ZstandardStream" /> class by using the specified stream and decoder instance.</summary>
         /// <param name="stream">The stream from which data to decompress is read.</param>
@@ -113,6 +114,11 @@ namespace System.IO.Compression
 
             try
             {
+                if (_decompressionCompleted)
+                {
+                    return 0;
+                }
+
                 int bytesWritten;
                 OperationStatus lastResult;
                 while (!TryDecompress(buffer, out bytesWritten, out lastResult))
@@ -133,6 +139,11 @@ namespace System.IO.Compression
                     }
 
                     _buffer.Commit(bytesRead);
+                }
+
+                if (lastResult == OperationStatus.Done)
+                {
+                    _decompressionCompleted = true;
                 }
 
                 // When decompression finishes, rewind the stream to the exact end of compressed data
@@ -188,6 +199,11 @@ namespace System.IO.Compression
 
             try
             {
+                if (_decompressionCompleted)
+                {
+                    return 0;
+                }
+
                 int bytesWritten;
                 OperationStatus lastResult;
                 while (!TryDecompress(buffer.Span, out bytesWritten, out lastResult))
@@ -208,6 +224,11 @@ namespace System.IO.Compression
                     }
 
                     _buffer.Commit(bytesRead);
+                }
+
+                if (lastResult == OperationStatus.Done)
+                {
+                    _decompressionCompleted = true;
                 }
 
                 // When decompression finishes, rewind the stream to the exact end of compressed data

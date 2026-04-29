@@ -235,6 +235,42 @@ public class ZstandardStreamTests
         Assert.Equal(original, output.ToArray());
     }
 
+    [Fact]
+    public void Decompress_AfterEndOfStream_ReturnsZero()
+    {
+        byte[] compressed = CompressUtf8("read-to-end-once");
+
+        using var compressedBuffer = new MemoryStream(compressed);
+        using var decompressor = new ZstandardStream(compressedBuffer, CompressionMode.Decompress);
+
+        byte[] buffer = new byte[256];
+        while (decompressor.Read(buffer, 0, buffer.Length) > 0)
+        {
+        }
+
+        int readAfterEnd = decompressor.Read(buffer, 0, buffer.Length);
+
+        Assert.Equal(0, readAfterEnd);
+    }
+
+    [Fact]
+    public async Task DecompressAsync_AfterEndOfStream_ReturnsZero()
+    {
+        byte[] compressed = CompressUtf8("read-to-end-async");
+
+        using var compressedBuffer = new MemoryStream(compressed);
+        await using var decompressor = new ZstandardStream(compressedBuffer, CompressionMode.Decompress);
+
+        byte[] buffer = new byte[256];
+        while (await decompressor.ReadAsync(buffer, 0, buffer.Length) > 0)
+        {
+        }
+
+        int readAfterEnd = await decompressor.ReadAsync(buffer, 0, buffer.Length);
+
+        Assert.Equal(0, readAfterEnd);
+    }
+
     private static byte[] CompressUtf8(string value)
     {
         byte[] input = Encoding.UTF8.GetBytes(value);
