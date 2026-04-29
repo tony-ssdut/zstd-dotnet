@@ -2,8 +2,8 @@
 
 	<PropertyGroup>
 		<PackageId>SystemIOCompression.Zstandard</PackageId>
-		<PackageVersion>11.0.1</PackageVersion>
-		<LibraryVersion>11.0.1</LibraryVersion>
+		<PackageVersion>11.0.2</PackageVersion>
+		<LibraryVersion>11.0.2</LibraryVersion>
 		<Authors>Tony</Authors>
 		<Description>zstd dotnet native dependency</Description>
 		<PackageProjectUrl>https://github.com/tony-ssdut/zstd-dotnet</PackageProjectUrl>

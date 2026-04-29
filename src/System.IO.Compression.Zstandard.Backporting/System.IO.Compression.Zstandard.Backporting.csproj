@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <PackageId>SystemIOCompression.Zstandard.Backporting</PackageId>
-    <PackageVersion>11.0.1</PackageVersion>
+    <PackageVersion>11.0.2</PackageVersion>
     <Authors>Tony</Authors>
     <Description>Backport package for System.IO.Compression.Zstandard. On net8-net10 it uses the compatibility implementation; on net11+ it has no dependency.</Description>
     <PackageProjectUrl>https://github.com/tony-ssdut/zstd-dotnet</PackageProjectUrl>
